@@ -9,6 +9,8 @@ var utils = require('./modules/utils');
 var config = utils.config;
 var debug = utils.debug;
 
+var db = require('./modules/database');
+
 // Check mongodb
 mongo.connect(config('mongo-url'), (err, db) => {
 	if(err) {
@@ -60,29 +62,22 @@ bot.onText(/\/start/, (msg, match) => {
 	const chatId = msg.chat.id;
 	
 	// Check if user already exists in database
-	mongo.connect(config('mongo-url'), (err, db) => {
-		if(err) throw err;
-		
-		db.collection('users').find({ id: chatId }).toArray((err, docs) => {
-			if(err) throw err;
-			
-			if(docs.length === 0) {
-				// User is not in db
-				db.collection('users').insertOne({
-					id: chatId, // Telegram id
-					agentname: '', // Ingress player name
-					level: '', // Ingress level (1-16)
-					configlevel: 0 // Needs to tell agentname (configlevel 1) and level (configlevel 2)
-				}, (err, result) => {
-					if(err) throw err;
-					
-					bot.sendMessage(chatId, 'Hello there!\nBefore we can start farming, we\'ll need some basic information about you.\nWhat\'s your agent name in Ingress?');
-				});
-			} else {
-				// User already in db
-				bot.sendMessage(chatId, 'You have already registered yourself!\nIf you need to register again, use /reset');
-			}
-		});
+	db.users.findUser(chatId, (doc) => {
+		if(!doc) {
+			// User does not exist in the database
+			db.users.addUser({
+				id: chatId, // Telegram id
+				agentname: '', // Ingress player name
+				level: '', // Ingress level (1-16)
+				configlevel: 0 // Needs to tell agentname (configlevel 1) and level (configlevel 2)
+			}, (result) => {
+				debug('Created database entry for id ' + chatId + ': ' + result);	
+				bot.sendMessage(chatId, '*Hello there!*\n\nBefore we can start farming, we\'ll need some basic information about you.\n\n_What\'s your agent name in Ingress?_', { parse_mode: 'Markdown' });
+			});
+		} else {
+			// User already in database
+			bot.sendMessage(chatId, 'You are already registered!\n\nIf you want to re-register, use /reset');
+		}
 	});
 });
 
@@ -96,26 +91,23 @@ bot.onText(/\/reset/, (msg, match) => {
 	const chatId = msg.chat.id;
 	
 	// Find the user in the database
-	mongo.connect(config('mongo-url'), (err, db) => {
-		if(err) throw err;
-		
-		db.collection('users').find({ id: chatId }).toArray((err, docs) => {
-			if(err) throw err;
-			
-			if(docs.length === 0) {
-				// User not in db
-				bot.sendMessage(chatId, 'You don\'t exist in my database at all. Use /start to register yourself.');
-			} else {
-				// Remove user from the database
-				db.collection('users').deleteOne({ id: chatId }, (err, result) => {
-					debug('Deleted entry for id ' + chatId + ' from database: ' + result);
-					bot.sendMessage(chatId, 'You have been removed from my database.\nUse /start to re-register.');
-				});
-			}
-		});
+	db.users.findUser(chatId, (doc) => {
+		if(!doc) {
+			// User not in db
+			bot.sendMessage(chatId, 'You don\'t exist in the database at all.\n\nUse /start to register.');
+		} else {
+			db.users.deleteUser(chatId, (result) => {
+				debug('Deleted entry for id ' + chatId + ' from database: ' + result);
+				bot.sendMessage(chatId, 'You have been removed from the database.\n\nUse /start to re-register.');
+			});
+		}
 	});
 });
 
 bot.on('message', (msg) => {
 	debug(msg);
+	
+	if(msg.chat.type === 'private') {
+		
+	}
 });

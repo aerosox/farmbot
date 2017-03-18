@@ -1,3 +1,5 @@
+'use strict';
+
 var config;
 
 // Try loading config.json
@@ -18,3 +20,4 @@ module.exports.debug = (msg) => {
 		console.log('[DEBUG] ' + msg);
 	}
 };
+
