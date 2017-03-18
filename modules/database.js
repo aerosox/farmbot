@@ -3,21 +3,24 @@
 var mongo = require('mongodb').MongoClient;
 
 var utils = require('./utils');
-var config = utils.config;
-var debug = utils.debug;
+var config = utils.config, debug = utils.debug;
 
-module.exports.check = () => {
+function connect(callback) {
 	mongo.connect(config('mongo-url'), (err, db) => {
 		if(err) throw err;
 		
+		callback(db);
+	});
+}
+
+module.exports.check = () => {
+	connect((db) => {
 		debug('MongoDB is working!');
 	});
 };
 
 module.exports.getCollection = (collection, callback) => {
-	mongo.connect(config('mongo-url'), (err, db) => {
-		if(err) throw err;
-		
+	connect((db) => {
 		db.collection(collection).find().toArray((err, docs) => {
 			if(err) throw err;
 			
@@ -28,9 +31,7 @@ module.exports.getCollection = (collection, callback) => {
 
 var users = module.exports.users = {
 	findUser: (id, callback) => {
-		mongo.connect(config('mongo-url'), (err, db) => {
-			if(err) throw err;
-			
+		connect((db) => {
 			db.collection('users').find({ id: id }).toArray((err, docs) => {
 				if(err) throw err;
 				
@@ -42,9 +43,7 @@ var users = module.exports.users = {
 	},
 	
 	addUser: (data, callback) => {
-		mongo.connect(config('mongo-url'), (err, db) => {
-			if(err) throw err;
-			
+		connect((db) => {
 			db.collection('users').insertOne(data, (err, result) => {
 				if(err) throw err;
 				
@@ -54,9 +53,7 @@ var users = module.exports.users = {
 	},
 	
 	deleteUser: (id, callback) => {
-		mongo.connect(config('mongo-url'), (err, db) => {
-			if(err) throw err;
-			
+		connect((db) => {
 			db.collection('users').deleteOne({ id: id }, (err, result) => {
 				if(err) throw err;
 				
@@ -72,7 +69,7 @@ var users = module.exports.users = {
 	},
 	
 	updateAgentName: (id, agentname, callback) => {
-		mongo.connect(config('mongo-url'), (err, db) => {
+		connect((db) => {
 			db.collection('users').updateOne({ id: id }, {
 				$set: {
 					agentname: agentname
@@ -86,7 +83,7 @@ var users = module.exports.users = {
 	},
 
 	updateLevel: (id, level, callback) => {
-		mongo.connect(config('mongo-url'), (err, db) => {
+		connect((db) => {
 			db.collection('users').updateOne({ id: id }, {
 				$set: {
 					level: level
@@ -101,7 +98,7 @@ var users = module.exports.users = {
 	
 	nextConfigLevel: (id, callback) => {
 		users.getConfigLevel(id, (configlevel) => {
-			mongo.connect(config('mongo-url'), (err, db) => {
+			connect((db) => {
 				db.collection('users').updateOne({ id: id }, {
 					$set: {
 						configlevel: configlevel + 1
@@ -115,3 +112,51 @@ var users = module.exports.users = {
 		});
 	}
 };
+
+module.exports.farm = {
+	getActiveFarm: (callback) => {
+		connect((db) => {
+			db.collection('farms').find({ active: true }, (err, docs) => {
+				if(err) throw err;
+				
+				if(docs.size === 0) callback();
+				else if(docs.size === 1) callback(docs[0]);
+				else throw 'There should never be more than one active farm at a time.';
+			});
+		});
+	},
+	
+	clearFarm: (callback) => {
+		// Clears the active farm
+		connect((db) => {
+			db.collection('farms').updateOne({ active: true }, {
+				$set: {
+					active: false
+				}
+			}, (err, result) => {
+				if(err) throw err;
+				
+				callback(result);
+			});
+		});
+	},
+	
+	addFarm: (creator, timeOfStart, duration, venue, venueName, callback) => {
+		connect((db) => {
+			db.collection('farms').insertOne({
+				active: true,
+				creator: creator,
+				timeCreated: (new Date()).getTime(),
+				timeOfStart: timeOfStart,
+				duration: duration,
+				venue: venue,
+				venueName: venueName
+			}, (err, result) => {
+				if(err) throw err;
+				
+				callback(result);
+			});
+		});
+	}
+};
+
