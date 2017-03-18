@@ -2,7 +2,6 @@
 
 var fs = require('fs');
 
-var mongo = require('mongodb').MongoClient;
 var tgbot = require('node-telegram-bot-api');
 
 var utils = require('./modules/utils');
@@ -12,12 +11,7 @@ var debug = utils.debug;
 var db = require('./modules/database');
 
 // Check mongodb
-mongo.connect(config('mongo-url'), (err, db) => {
-	if(err) {
-		console.log('Error connecting to mongodb!\n');
-		throw err;
-	} else debug('Connected to mongodb successfully!');
-});
+db.check();
 
 var bot = new tgbot(config('bot-token'), { polling: true });
 
@@ -32,17 +26,11 @@ bot.onText(/\/dumpdb ([a-zA-Z]+)/, (msg, match) => {
 	// Make sure sender is an admin
 	if(config('admins').indexOf(username) === -1) return;
 	
-	mongo.connect(config('mongo-url'), (err, db) => {
-		if(err) throw err;
-		
-		db.collection(collection).find().toArray((err, docs) => {
-			if(err) throw err;
-			
-			if(docs.length === 0) {
-				// Nothing to dump
-				bot.sendMessage(msg.chat.id, 'Collection ' + collection + ' empty!');
-			} else bot.sendMessage(msg.chat.id, JSON.stringify(docs));
-		});
+	db.getCollection(collection, (docs) => {
+		if(docs.length === 0) {
+			// Nothing to dump
+			bot.sendMessage(msg.chat.id, 'Collection ' + collection + ' is empty!');
+		} else bot.sendMessage(msg.chat.id, JSON.stringify(docs));
 	});
 });
 
@@ -98,16 +86,55 @@ bot.onText(/\/reset/, (msg, match) => {
 		} else {
 			db.users.deleteUser(chatId, (result) => {
 				debug('Deleted entry for id ' + chatId + ' from database: ' + result);
-				bot.sendMessage(chatId, 'You have been removed from the database.\n\nUse /start to re-register.');
+				bot.sendMessage(chatId, 'You have been removed from the database.\n\nUse /start if you wish to re-register.');
 			});
 		}
 	});
 });
 
 bot.on('message', (msg) => {
+	// Skip commands
+	if(msg.text[0] === '/') return;
+	
 	debug(msg);
 	
+	const chatId = msg.chat.id;
+	
 	if(msg.chat.type === 'private') {
-		
+		db.users.getConfigLevel(chatId, (configlevel) => {
+			debug('Configlevel for id ' + chatId + ' is ' + configlevel);
+			
+			// If configlevel is 0, they are sending the agent name
+			// If it is 1, they are sending their level [1-16]
+			// 2 means they have completed the config
+			// -1 means they haven't yet started the registration process
+			
+			if(configlevel === -1) {
+				bot.sendMessage(chatId, 'Please register first with /start');
+			} else if(configlevel === 0) {
+				// Get rid of any extra characters
+				const agentname = msg.text.trim().split(' ').join('').replace(/@/g, '');
+				
+				db.users.updateAgentName(chatId, agentname, () => {
+					db.users.nextConfigLevel(chatId, () => {
+						bot.sendMessage(chatId, 'Your agent name is now set to @' + agentname + ' (use /changeagentname to change it)\n\n_Now, what\'s your level in Ingress?_', { parse_mode: 'Markdown' });
+					});
+				});
+			} else if(configlevel === 1) {
+				// Get rid of any extra characters
+				const level = msg.text.trim().split(' ').join('').replace(/[^0-9]/g, '');
+				
+				if(level === '' || (parseInt(level) > 16 || parseInt(level) < 1)) {
+					bot.sendMessage(chatId, 'Please send your level in Ingress as an integer between 1 and 16');
+					return;
+				}
+				
+				db.users.updateLevel(chatId, level, () => {
+					db.users.nextConfigLevel(chatId, () => {
+						bot.sendMessage(chatId, 'Your level is now set to ' + level + ' (use /changelevel to change it)\n\nRegistration complete! You can now create and join farms, use /help for help.');
+					});
+				});
+			}
+		});
 	}
 });
