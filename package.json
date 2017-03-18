@@ -1,0 +1,23 @@
+{
+  "name": "farmbot",
+  "version": "1.0.0",
+  "description": "Telegram bot for organizing Ingress farms",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ounai/farmbot.git"
+  },
+  "author": "ounai",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/ounai/farmbot/issues"
+  },
+  "homepage": "https://github.com/ounai/farmbot#readme",
+  "dependencies": {
+    "mongodb": "^2.2.25",
+    "node-telegram-bot-api": "^0.27.0"
+  }
+}

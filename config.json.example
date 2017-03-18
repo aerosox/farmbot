@@ -1,0 +1,6 @@
+{
+	"debug-mode": false,
+	"admins": [ "@your-telegram-username" ],
+	"bot-token": "Telegram bot token. Talk to @BotFather if you don't have one.",
+	"mongo-url": "mongodb://localhost:27017/farmbot"
+}
