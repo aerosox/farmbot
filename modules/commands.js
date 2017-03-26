@@ -23,7 +23,7 @@ module.exports.start = (userId) => {
 				id: userId, // Telegram user id
 				agentname: '', // Ingress agent name
 				level: 0, // Ingress level (1-16)
-				configlevel: 0 // Needs to tell agent name (configlevel 1) and level (configlevel 2)
+				todo: 'AgentNameAndLevel'
 			}, (result) => {
 				debug('Created database entry for id ' + userId + ': ' + result);
 				bot.sendMessage(userId, '*Hello there!*\n\n'
@@ -53,7 +53,36 @@ module.exports.changeagentname = (userId) => {
 };
 
 module.exports.changelevel = (userId) => {
-	// TODO
-	bot.sendMessage(userId, 'Not yet implemented. Re-register with /reset for now.');
+	db.users.setTodo(userId, 'ChangeAgentLevel', () => {
+		bot.sendMessage(userId, 'What is your level in Ingress?', utils.keyboardAgentLevel);
+	});
 };
 
+module.exports.newfarm = (userId) => {
+	if(db.locations.getLocationsForUser(userId, 5, (docs) => {
+		if(docs.length === 0) {
+			bot.sendMessage(userId, '*Alright, let\'s create ourselves a new farm!*\n\n'
+				+ 'Where whould this farm take place?\n'
+				+ '(Please send me a location or venue from the location menu)',
+				{ parse_mode: 'Markdown' });
+		} else {
+			var opts = {
+				parse_mode: 'Markdown',
+				reply_markup: {
+					keyboard: [],
+					one_time_keyboard: true
+				}
+			};
+			
+			docs.forEach((doc) => {
+				opts.reply_markup.keyboard.push('[' + (opts.reply_markup.keyboard.length+1) + '] '
+					+ doc.name);
+			});
+			
+			bot.sendMessage(userId, '*Alright, let\'s create ourselves a new farm!*\n\n'
+				+ 'Where whould this farm take place?\n'
+				+ '(Please send me a location or venue from the location menu, '
+				+ 'or choose one of your recently used locations)', opts);
+		}
+	}));
+};

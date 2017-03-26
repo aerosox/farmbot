@@ -22,15 +22,38 @@ bot.onText(/\/ping/, (msg, match) => {
 });
 
 // /start
-bot.onText(/\/start/, (msg, match) => {
-	if(msg.chat.type !== 'private') bot.sendMessage('/start can\'t be used in group chats.');
+bot.onText(/\/start$/, (msg, match) => {
+	if(msg.chat.type !== 'private') bot.sendMessage(msg.chat.id, '/start can\'t be used in group chats.');
 	else cmd.start(msg.chat.id);
+});
+
+// /start newfarm
+// Invoked from the inline menu
+bot.onText(/\/start newfarm/, (msg, match) => {
+	if(msg.chat.type !== 'private') bot.sendMessage(msg.chat.id, '/start can\'t be used in group chats.');
+	else if(msg.chat.type === 'private') cmd.newfarm(msg.chat.id);
+});
+
+// /newfarm
+bot.onText(/\/newfarm/, (msg, match) => {
+	if(msg.chat.type !== 'private') bot.sendMessage(msg.chat.id, '/start can\'t be used in group chats.');
+	else if(msg.chat.type === 'private') cmd.newfarm(msg.chat.id);
 });
 
 // /reset
 bot.onText(/\/reset/, (msg, match) => {
-	if(msg.chat.type !== 'private') bot.sendMessage('/reset can\'t be used in group chats.');
+	if(msg.chat.type !== 'private') bot.sendMessage(msg.chat.id, '/reset can\'t be used in group chats.');
 	else cmd.reset(msg.chat.id);
+});
+
+bot.onText(/\/changeagenname/, (msg, match) => {
+	if(msg.chat.type !== 'private') bot.sendMessage(msg.chat.id, '/changeagentname can\'t be used in group chats.');
+	else cmd.changeagentname(msg.chat.id);
+});
+
+bot.onText(/\/changelevel/, (msg, match) => {
+	if(msg.chat.type !== 'private') bot.sendMessage(msg.chat.id, '/changelevel can\'t be used in group chats.');
+	else cmd.changelevel(msg.chat.id);
 });
 
 // Called on every message the bot receives
@@ -45,53 +68,70 @@ bot.on('message', (msg) => {
 	if(text[0] === '/') return;
 	
 	if(msg.chat.type === 'private') {
-		db.users.getConfigLevel(chatId, (configlevel) => {
-			// If configlevel is 0, they are sending the agent name
-			// If it is 1, they are sending their level [1-16]
-			// 2 means they have completed the config
-			// -1 means they haven't yet started the registration process
-			
-			if(configlevel === -1) bot.sendMessage(chatId, 'Please register first with /start');
-			else if(configlevel === 0) {
-				// Get rid of any extra characters
+		db.users.getTodo(chatId, (todo) => {
+			if(todo === undefined) bot.sendMessage(chatId, 'Please register first with /start');
+			else if(todo === 'RegisterAgentNameAndLevel') {
 				const agentname = text.trim().split(' ').join('').replace(/@/g, '');
 				
 				db.users.updateAgentName(chatId, agentname, () => {
-					db.users.nextConfigLevel(chatId, () => {
-						const opts = {
-							parse_mode: 'Markdown',
-							reply_markup: JSON.stringify({
-								keyboard: [
-									[  '1',  '2',  '3',  '4' ],
-									[  '5',  '6',  '7',  '8' ],
-									[  '9', '10', '11', '12' ],
-									[ '13', '14', '15', '16' ]
-								],
-								one_time_keyboard: true
-							})
-						};
-						
+					db.users.setTodo(chatId, 'RegisterAgentLevel', () => {
 						bot.sendMessage(chatId, 'Your agent name is now set to @' + agentname + '\n'
 							+ '(use /changeagentname to change it)\n\n'
-							+ '_Now, what\'s your level in Ingress?_', opts);
+							+ '_Now, what\'s your level in Ingress?_',
+							utils.keyboardAgentLevel);
 					});
 				});
-			} else if(configlevel === 1) {
-				// Get rid of any extra characters
+			} else if(todo === 'RegisterAgentLevel') {
 				const level = text.trim().split(' ').join('').replace(/[^0-9]/g, '');
 				
 				if(level === '' || (parseInt(level) > 16 || parseInt(level) < 1)) {
 					bot.sendMessage(chatId, 'Please send your level in Ingress as an integer between 1 and 16');
 				} else db.users.updateLevel(chatId, level, () => {
-					db.users.nextConfigLevel(chatId, () => {
+					db.users.setTodo(chatId, 'Idle', () => {
 						bot.sendMessage(chatId, 'Your level is now set to ' + level + '\n'
 							+ '(use /changelevel to change it)\n\n'
 							+ '*Registration complete!* You can now create and join farms,'
 							+ 'use /help for help.', { parse_mode: 'Markdown' });
 					});
 				});
+			} else if(todo === 'ChangeAgentLevel') {
+				const level = text.trim().split(' ').join('').replace(/[^0-9]/g, '');
+				
+				if(level === '' || (parseInt(level) > 16 || parseInt(level) < 1)) {
+					bot.sendMessage(chatId, 'Please send your level in Ingress as an integer between 1 and 16');
+				} else db.users.updateLevel(chatId, level, () => {
+					db.users.setTodo(chatId, 'Idle', () => {
+						bot.sendMessage(chatId, 'Your level has been changed to ' + level);
+					});
+				});
 			}
 		});
 	}
+});
+
+// Called on every inline query
+bot.on('inline_query', (msg) => {
+	const queryId = msg.id;
+	const queryText = msg.query;
+	const querySender = msg.from.id;
+	
+	var result = [
+		{
+			type: 'location',
+			id: 'test',
+			latitude: 0.0,
+			longitude: 0.0,
+			title: 'test'
+		}
+	];
+	
+	debug('Inline query by ' + msg.from.id);
+	debug(JSON.stringify(msg));
+	
+	bot.answerInlineQuery(queryId, result, {
+		is_personal: true,
+		switch_pm_text: 'Create new farm',
+		switch_pm_parameter: 'newfarm'
+	});
 });
 

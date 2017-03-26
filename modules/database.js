@@ -62,12 +62,6 @@ var users = module.exports.users = {
 		});
 	},
 	
-	getConfigLevel: (id, callback) => {
-		users.findUser(id, (doc) => {
-			callback(doc.configlevel !== undefined ? doc.configlevel : -1);
-		});
-	},
-	
 	updateAgentName: (id, agentname, callback) => {
 		connect((db) => {
 			db.collection('users').updateOne({ id: id }, {
@@ -96,18 +90,23 @@ var users = module.exports.users = {
 		});
 	},
 	
-	nextConfigLevel: (id, callback) => {
-		users.getConfigLevel(id, (configlevel) => {
-			connect((db) => {
-				db.collection('users').updateOne({ id: id }, {
-					$set: {
-						configlevel: configlevel + 1
-					}
-				}, (err, result) => {
-					if(err) throw err;
-					
-					callback(result);
-				});
+	getTodo: (id, callback) => {
+		users.findUser(id, (doc) => {
+			if(doc === undefined) callback(undefined);
+			callback(doc.todo);
+		});
+	},
+	
+	setTodo: (id, todo, callback) => {
+		connect((db) => {
+			db.collection('users').updateOne({ id: id }, {
+				$set: {
+					todo: todo
+				}
+			}, (err, result) => {
+				if(err) throw err;
+				
+				callback(result);
 			});
 		});
 	}
@@ -141,16 +140,53 @@ module.exports.farm = {
 		});
 	},
 	
-	addFarm: (creator, timeOfStart, duration, venue, venueName, callback) => {
+	addFarm: (creator, callback) => {
 		connect((db) => {
 			db.collection('farms').insertOne({
 				active: true,
+				ready: false,
 				creator: creator,
 				timeCreated: (new Date()).getTime(),
-				timeOfStart: timeOfStart,
-				duration: duration,
-				venue: venue,
-				venueName: venueName
+				timeOfStart: 0, // in unix timestamp
+				duration: 0, // in seconds
+				venue: {
+					latitude: 0.0,
+					longitude: 0.0
+				},
+				venueName: ''
+			}, (err, result) => {
+				if(err) throw err;
+				
+				callback(result);
+			});
+		});
+	}
+};
+
+module.exports.locations = {
+	getLocationsForUser: (userId, limit, callback) => {
+		connect((db) => {
+			db.collection('locations')
+					.find({ user: userId })
+					.sort({ time: -1 })
+					.limit(limit)
+					.toArray((err, docs) => {
+				
+				if(err) throw err;
+				
+				callback(docs);
+			});
+		});
+	},
+	
+	addLocation: (userId, name, latitude, longitude, callback) => {
+		connect((db) => {
+			db.collection('locations').insertOne({
+				user: userId,
+				time: (new Date()).getTime(),
+				name: name,
+				latitude: latitude,
+				longitude: longitude
 			}, (err, result) => {
 				if(err) throw err;
 				

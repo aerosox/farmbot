@@ -21,3 +21,16 @@ try {
 	console.log('Error reading config file!\n');
 	throw err;
 }
+
+module.exports.keyboardAgentLevel = {
+	parse_mode: 'Markdown',
+	reply_markup: {
+		keyboard: [
+			[  '1',  '2',  '3',  '4' ],
+			[  '5',  '6',  '7',  '8' ],
+			[  '9', '10', '11', '12' ],
+			[ '13', '14', '15', '16' ]
+		],
+		one_time_keyboard: true
+	}
+};

@@ -6,6 +6,9 @@ var utils = require('./utils');
 var config = utils.config, debug = utils.debug;
 
 var bot = new tgbot(config('bot-token'), { polling: true });
-debug('Bot initialized');
+
+bot.getMe().then((me) => {
+	debug('Bot working! @' + me.username + ' / ' + me.id);
+});
 
 module.exports = bot;
